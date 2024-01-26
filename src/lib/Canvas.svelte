@@ -7,6 +7,7 @@
 
   export let cursorPosition: { x: number; y: number } | undefined;
   export let cursorMovement: { x: number; y: number };
+  export let logoUrl: string;
 
   let render: (
     time: number,
@@ -15,11 +16,11 @@
     cursorMovement: vec2
   ) => void | undefined;
 
-  let updateResolution: () => void | undefined;
-  let isRendering = true;
+  let updateResolution: (() => void) | undefined;
+  let updateLogoUrl: ((logoUrl: string) => void) | undefined;
 
-  void onMount(async () => {
-    const canvasContext = await setupCanvasContext(canvas);
+  onMount(() => {
+    const canvasContext = setupCanvasContext(canvas);
 
     if (!canvasContext) {
       return;
@@ -27,10 +28,12 @@
 
     render = canvasContext.render;
     updateResolution = canvasContext.updateResolution;
+    updateLogoUrl = canvasContext.updateLogoUrl;
   });
 
+  $: updateLogoUrl?.(logoUrl);
+
   const onResize = () => {
-    isRendering = false;
     updateResolution?.();
   };
 

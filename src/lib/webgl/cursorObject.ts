@@ -57,7 +57,7 @@ const generateCursorVertices = (cursorPosition: vec2, cursorMovement: vec2) => {
     screenSpacePointerMovement.x !== 0 ||
     screenSpacePointerMovement.y !== 0
   ) {
-    let normalizedCursorMovementVector = vec2.fromValues(
+    const normalizedCursorMovementVector = vec2.fromValues(
       screenSpacePointerMovement.x,
       screenSpacePointerMovement.y
     );
@@ -84,13 +84,15 @@ const generateCursorVertices = (cursorPosition: vec2, cursorMovement: vec2) => {
       cursorDirectionPerpVector[1]
     );
 
-    // Vector pointing in the direction of the mouse movement, scaled by the size of the cursor object
+    // Vector pointing in the direction of the mouse movement, scaled by the
+    // size of the cursor object
     const v1 = vec2.fromValues(
       normalizedCursorMovementVector[0] * scaledCursorObjectSize[0] * 0.5,
       normalizedCursorMovementVector[1] * scaledCursorObjectSize[1] * 0.5
     );
 
-    // Vector perpendicular to the direction of the mouse movement, scaled by the size of the cursor object
+    // Vector perpendicular to the direction of the mouse movement, scaled by
+    // the size of the cursor object
     const v2 = vec2.fromValues(
       cursorDirectionPerpVector[0] * scaledCursorObjectSize[0] * 0.5,
       cursorDirectionPerpVector[1] * scaledCursorObjectSize[1] * 0.5
@@ -173,8 +175,6 @@ const generateCursorVertices = (cursorPosition: vec2, cursorMovement: vec2) => {
       -(v1[0] + screenSpacePointerMovement.x) + v2[0],
       -(v1[1] + screenSpacePointerMovement.y) + v2[1]
     );
-
-    const a = vec2.fromValues(1, 1);
 
     const uvFromNormal = (v: vec2) => {
       const u = vec2.create();

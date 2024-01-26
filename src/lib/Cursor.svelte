@@ -1,18 +1,15 @@
 <script lang="ts">
-  import type { CursorState } from "./cursor";
-
   export let position: { x: number; y: number } | undefined;
-  export let state: CursorState;
+  export let isHidden: boolean;
 
   const SIZE = 20;
 </script>
 
 <div
-  style="height:{SIZE}px; width: {SIZE}px; border-radius: {SIZE}px; left: {(position?.x ||
-    0) -
-    SIZE / 2}px; top: {(position?.y || 0) - SIZE / 2}px; {!position &&
-    'visibility: hidden;'}"
-  class:hidden={state === "hidden"}
+  class:hidden={isHidden || !position}
+  style:--top={`${(position?.y || 0) - SIZE / 2}px`}
+  style:--left={`${(position?.x || 0) - SIZE / 2}px`}
+  style:--size={`${SIZE}px`}
 />
 
 <style>
@@ -22,6 +19,11 @@
     z-index: 2;
     pointer-events: none;
     transform: scale(100%);
+    height: var(--size);
+    width: var(--size);
+    border-radius: var(--size);
+    top: var(--top);
+    left: var(--left);
   }
 
   div.hidden {

@@ -1,11 +1,17 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Canvas from "./lib/Canvas.svelte";
   import Cursor from "./lib/Cursor.svelte";
-  import type { CursorState } from "./lib/cursor";
+  import GhostIcon from "@assets/ghost-solid.svg";
+  import { resetUrlHash } from "./lib/helpers";
+
+  const logoUrlParameterName = "logo_url";
 
   let cursorPosition: { x: number; y: number } | undefined = undefined;
   let cursorMovement = { x: 0, y: 0 };
-  let cursorState: CursorState = "standard";
+  let isCursorHidden = false;
+
+  let logoUrl = "";
 
   const onMouseEnter = (event: MouseEvent) => {
     cursorPosition = { x: event.clientX, y: event.clientY };
@@ -44,12 +50,34 @@
   };
 
   const onMouseEnterDocument = () => {
-    cursorState = "standard";
+    isCursorHidden = false;
   };
 
   const onMouseLeaveDocument = () => {
-    cursorState = "hidden";
+    isCursorHidden = true;
   };
+
+  const onHashChange = () => {
+    if (!location.hash) {
+      logoUrl = GhostIcon;
+      return;
+    }
+
+    const hash = location.hash.substring(1);
+    const parts = hash.split("=");
+
+    if (parts.length === 0 || parts[0] === logoUrlParameterName) {
+      logoUrl = decodeURIComponent(parts[1]);
+    }
+
+    if (!logoUrl) {
+      resetUrlHash();
+    }
+  };
+
+  onMount(() => {
+    onHashChange();
+  });
 </script>
 
 <svelte:body
@@ -57,14 +85,16 @@
   on:mouseenter={onMouseEnterDocument}
 />
 
+<svelte:window on:hashchange={onHashChange} />
+
 <main
   on:mouseenter={onMouseEnter}
   on:pointerdown={onPointerDown}
   on:pointerup={onPointerUp}
   on:pointermove={onPointerMove}
 >
-  <Canvas {cursorPosition} {cursorMovement} />
-  <Cursor position={cursorPosition} state={cursorState} />
+  <Canvas {cursorPosition} {cursorMovement} {logoUrl} />
+  <Cursor position={cursorPosition} isHidden={isCursorHidden} />
 </main>
 
 <style>

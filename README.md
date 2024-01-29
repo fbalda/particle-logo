@@ -1,6 +1,6 @@
 ![Screenshot](/screenshot.png?raw=true "Screenshot")
 
-# Particle logo
+# Particle Logo
 
 Small system for rendering logos (or any other type of image) as a collection of particles that can be manipulated with the pointer. Made with WebGL and Svelte.
 [Try it out](https://fbalda.github.io/particle-logo)

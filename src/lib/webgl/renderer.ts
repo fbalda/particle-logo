@@ -1,15 +1,15 @@
 import type { vec2 } from "gl-matrix";
 import { debounce, getImageDataFromUrl, resetUrlHash } from "../helpers";
-import generateCursorVertices from "./cursorObject";
-import {
-  createCursorObjectData,
-  createFramebufferData,
-  createShaders,
-  setupLogoParticles,
-  type LogoParticleData,
-} from "./resources";
+import { createCursorObjectData } from "./cursorObject";
+import { createForceVectorFramebufferData, createShaders } from "./resources";
+import { setupLogoParticles, type LogoParticleData } from "./logoParticles";
 
-const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
+const RESOURCE_REFRESH_DEBOUNCE_DELAY_MS = 300;
+const LOGO_SIZE = 500;
+const CLEAR_COLOR: [number, number, number, number] = [0.0, 0.0, 0.0, 1.0];
+const CURSOR_DEBUG_DRAW = false;
+
+const setupRenderer = (canvasElement: HTMLCanvasElement) => {
   const canvasResolution = { x: 0, y: 0 };
 
   const refreshCanvasResolution = () => {
@@ -25,23 +25,20 @@ const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
     return;
   }
 
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  gl.enable(gl.CULL_FACE);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  gl.enable(gl.CULL_FACE);
   gl.cullFace(gl.BACK);
 
-  const {
-    cursorShader: spriteShader,
-    particleShader,
-    particleTransformShader,
-  } = createShaders(gl);
+  const { cursorShader, particleShader, particleTransformShader } =
+    createShaders(gl);
 
   let particleData: LogoParticleData | undefined = undefined;
 
   const cursorObject = createCursorObjectData(gl);
 
-  const framebufferData = createFramebufferData(
+  const forceVectorFramebufferData = createForceVectorFramebufferData(
     gl,
     canvasResolution.x,
     canvasResolution.y
@@ -50,82 +47,54 @@ const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
   if (
     !particleTransformShader ||
     !particleShader ||
-    !spriteShader ||
+    !cursorShader ||
     !cursorObject
   ) {
     return;
   }
 
   let readBufferIndex = 0;
-  let rendering = true;
+  let isRendering = true;
 
-  const render = (
-    time: number,
-    deltaTime: number,
+  const renderForceVectorFramebuffer = (
     cursorPosition: vec2 | undefined,
     cursorMovement: vec2
   ) => {
-    const gl = canvasElement.getContext("webgl2");
-
-    if (!gl || !particleData) {
-      return;
-    }
-
-    gl.bindVertexArray(null);
-
-    if (!rendering) {
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      return;
-    }
-
-    gl.viewport(0, 0, canvasResolution.x, canvasResolution.y);
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebufferData.framebuffer);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, forceVectorFramebufferData.framebuffer);
+    // Vector components are mapped from [-1,1] to [0,1] so 0.5 means 0
     gl.clearColor(0.5, 0.5, 0.5, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-
-    let cursorObjectVertexCount = 0;
 
     if (cursorPosition) {
       gl.bindVertexArray(cursorObject.vao);
       gl.bindBuffer(gl.ARRAY_BUFFER, cursorObject.vbo);
 
-      const vertexData = generateCursorVertices(cursorPosition, cursorMovement);
+      cursorObject.updateVertices(cursorPosition, cursorMovement);
 
-      cursorObjectVertexCount = vertexData.length / 8;
+      gl.useProgram(cursorShader.program);
 
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(vertexData),
-        gl.DYNAMIC_DRAW
-      );
-
-      gl.useProgram(spriteShader.program);
-
-      // TODO: Bind all textures once, as we only have a few
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, cursorObject.texture);
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, cursorObject.texture);
 
-      gl.uniform1i(spriteShader.uniformLocations.get("radialMask") || null, 0);
-      gl.uniform1i(spriteShader.uniformLocations.get("forceMap") || null, 1);
+      gl.uniform1i(cursorShader.uniformLocations.get("radialMask") || null, 0);
 
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, cursorObjectVertexCount);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, cursorObject.vertexCount);
 
       gl.bindTexture(gl.TEXTURE_2D, null);
 
       gl.bindVertexArray(null);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
+  };
 
-    gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.DEPTH_STENCIL_ATTACHMENT]);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    // Update particles
-    const writeBufferIndex = 1 - readBufferIndex;
+  const updateParticles = (
+    deltaTime: number,
+    time: number,
+    writeBufferIndex: number
+  ) => {
+    if (!particleData) {
+      return;
+    }
 
     gl.bindTransformFeedback(
       gl.TRANSFORM_FEEDBACK,
@@ -143,7 +112,7 @@ const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
     gl.useProgram(particleTransformShader.program);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, framebufferData.renderTexture);
+    gl.bindTexture(gl.TEXTURE_2D, forceVectorFramebufferData.renderTexture);
     gl.uniform1i(
       particleTransformShader.uniformLocations.get("accelerationVectorMap") ||
         null,
@@ -174,6 +143,15 @@ const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
     gl.disable(gl.RASTERIZER_DISCARD);
 
     readBufferIndex = writeBufferIndex;
+  };
+
+  const renderParticles = (writeBufferIndex: number) => {
+    if (!particleData) {
+      return;
+    }
+
+    gl.clearColor(...CLEAR_COLOR);
+    gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.bindVertexArray(particleData.buffers[writeBufferIndex].vao);
     gl.useProgram(particleShader.program);
@@ -187,27 +165,70 @@ const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
     gl.drawArrays(gl.POINTS, 0, particleData.particleCount);
   };
 
+  const debugRenderCursorForceVectors = () => {
+    gl.bindVertexArray(cursorObject.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, cursorObject.vbo);
+
+    gl.useProgram(cursorShader.program);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, cursorObject.texture);
+
+    gl.uniform1i(cursorShader.uniformLocations.get("radialMask") || null, 0);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, cursorObject.vertexCount);
+  };
+
+  const render = (
+    time: number,
+    deltaTime: number,
+    cursorPosition: vec2 | undefined,
+    cursorMovement: vec2
+  ) => {
+    const gl = canvasElement.getContext("webgl2");
+
+    if (!gl || !particleData) {
+      return;
+    }
+
+    if (!isRendering) {
+      gl.clearColor(...CLEAR_COLOR);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      return;
+    }
+
+    const writeBufferIndex = 1 - readBufferIndex;
+
+    renderForceVectorFramebuffer(cursorPosition, cursorMovement);
+    updateParticles(deltaTime, time, writeBufferIndex);
+    renderParticles(writeBufferIndex);
+    if (CURSOR_DEBUG_DRAW) {
+      debugRenderCursorForceVectors();
+    }
+  };
+
   const refreshResources = debounce(() => {
     const gl = canvasElement.getContext("webgl2");
     if (!gl) {
       return;
     }
 
-    framebufferData.recreateFramebuffer(
+    forceVectorFramebufferData.recreateFramebuffer(
       gl,
       canvasResolution.x,
       canvasResolution.y
     );
     readBufferIndex = 0;
-    rendering = true;
-  }, 300);
+    isRendering = true;
+  }, RESOURCE_REFRESH_DEBOUNCE_DELAY_MS);
 
   const updateResolution = () => {
-    rendering = false;
+    isRendering = false;
     refreshCanvasResolution();
     canvasElement.width = canvasResolution.x;
     canvasElement.height = canvasResolution.y;
     refreshResources();
+    gl.viewport(0, 0, canvasResolution.x, canvasResolution.y);
   };
 
   updateResolution();
@@ -218,7 +239,11 @@ const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
     const requestId = ++lastLogoRequestId;
 
     void (async () => {
-      const imageData = await getImageDataFromUrl(logoUrl, 500, 500);
+      const imageData = await getImageDataFromUrl(
+        logoUrl,
+        LOGO_SIZE,
+        LOGO_SIZE
+      );
 
       if (requestId !== lastLogoRequestId) {
         // No logo requested in the meantime
@@ -251,4 +276,4 @@ const setupCanvasContext = (canvasElement: HTMLCanvasElement) => {
   };
 };
 
-export default setupCanvasContext;
+export default setupRenderer;

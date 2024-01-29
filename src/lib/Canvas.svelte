@@ -1,7 +1,7 @@
 <script lang="ts">
   import { vec2 } from "gl-matrix";
   import { onMount } from "svelte";
-  import setupCanvasContext from "./webgl/canvasContext";
+  import setupRenderer from "./webgl/renderer";
 
   let canvas: HTMLCanvasElement;
 
@@ -20,7 +20,7 @@
   let updateLogoUrl: ((logoUrl: string) => void) | undefined;
 
   onMount(() => {
-    const canvasContext = setupCanvasContext(canvas);
+    const canvasContext = setupRenderer(canvas);
 
     if (!canvasContext) {
       return;

@@ -1,3 +1,5 @@
+import { vec2 } from "gl-matrix";
+
 export const debounce = (func: () => unknown, timeout = 300) => {
   let timer: NodeJS.Timeout;
 
@@ -46,4 +48,26 @@ export const getImageDataFromUrl = async (
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
   return context.getImageData(0, 0, canvas.width, canvas.height);
+};
+
+export const createRotatedRect = (rotatedXAxis: vec2, rotatedYAxis: vec2) => {
+  return [
+    vec2.fromValues(
+      rotatedXAxis[0] - rotatedYAxis[0],
+      rotatedXAxis[1] - rotatedYAxis[1]
+    ),
+
+    vec2.fromValues(
+      rotatedXAxis[0] + rotatedYAxis[0],
+      rotatedXAxis[1] + rotatedYAxis[1]
+    ),
+    vec2.fromValues(
+      -rotatedXAxis[0] - rotatedYAxis[0],
+      -rotatedXAxis[1] - rotatedYAxis[1]
+    ),
+    vec2.fromValues(
+      -rotatedXAxis[0] + rotatedYAxis[0],
+      -rotatedXAxis[1] + rotatedYAxis[1]
+    ),
+  ];
 };

@@ -4,7 +4,6 @@ import cursorVertexShaderSource from "@shaders/cursor.vert.glsl?raw";
 import cursorFragmentShaderSource from "@shaders/cursor.frag.glsl?raw";
 import particleTransformVertexShaderSource from "@shaders/particleTransform.vert.glsl?raw";
 import particleTransformFragmentShaderSource from "@shaders/empty.frag.glsl?raw";
-import { vec2 } from "gl-matrix";
 
 interface ShaderSettings {
   fragmentShaderSource: string;
@@ -160,7 +159,7 @@ export const createShaders = (gl: WebGL2RenderingContext) => {
           "outPosition",
           "outVelocity",
           "outOrigin",
-          "outScale",
+          // "outScale",
           "outAlpha",
         ],
       },
@@ -177,192 +176,7 @@ export const createShaders = (gl: WebGL2RenderingContext) => {
   };
 };
 
-export interface LogoParticleData {
-  particleCount: number;
-  buffers: {
-    vao: WebGLVertexArrayObject;
-    vbo: WebGLBuffer;
-  }[];
-  update: (imageData: ImageData) => void;
-}
-
-export const setupLogoParticles = (
-  gl: WebGL2RenderingContext,
-  imageData: ImageData
-): LogoParticleData | undefined => {
-  const particleVAOs = [gl.createVertexArray(), gl.createVertexArray()];
-
-  if (!particleVAOs[0] || !particleVAOs[1]) {
-    return;
-  }
-
-  const particleBuffers = [gl.createBuffer(), gl.createBuffer()];
-
-  if (!particleBuffers[0] || !particleBuffers[1]) {
-    return;
-  }
-
-  const attributeSizes = [2, 2, 2, 1, 1];
-
-  const attributeStride =
-    attributeSizes.reduce((prev, current) => prev + current) * 4;
-
-  const particleData: LogoParticleData = {
-    particleCount: 0,
-    buffers: [
-      { vao: particleVAOs[0], vbo: particleBuffers[0] },
-      { vao: particleVAOs[1], vbo: particleBuffers[1] },
-    ],
-    update: () => {},
-  };
-
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    // TODO: Handle
-    return;
-  }
-
-  const setImage = (imageData: ImageData) => {
-    const initParticleData: number[] = [];
-
-    particleData.particleCount = 0;
-
-    const startX = -imageData.width / 2;
-    const startY = -imageData.height / 2;
-
-    for (let j = 0; j < imageData.height; j++) {
-      for (let i = 0; i < imageData.width; i++) {
-        const pixelX = startX + i;
-        const pixelY = startY + j;
-
-        const pixelIndex =
-          (i + (imageData.height - j - 1) * imageData.width) * 4 + 3;
-
-        if (imageData.data[pixelIndex] > 0) {
-          initParticleData.push(
-            pixelX, // Position X
-            pixelY, // Position Y
-            0, // Velocity X
-            0, // Velocity Y
-            pixelX, // Origin X
-            pixelY, // Origin Y
-            1, // Scale
-            imageData.data[pixelIndex] / 255 // Alpha
-          );
-
-          particleData.particleCount++;
-        }
-      }
-    }
-
-    const setupBuffers = (index: number) => {
-      gl.bindVertexArray(particleVAOs[index]);
-      gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffers[index]);
-
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(initParticleData),
-        gl.STATIC_DRAW
-      );
-
-      let currentOffset = 0;
-      attributeSizes.forEach((size, index) => {
-        gl.vertexAttribPointer(
-          index,
-          size,
-          gl.FLOAT,
-          false,
-          attributeStride,
-          currentOffset
-        );
-        gl.enableVertexAttribArray(index);
-        currentOffset += size * 4;
-      });
-    };
-
-    setupBuffers(1);
-    setupBuffers(0);
-  };
-
-  setImage(imageData);
-
-  particleData.update = setImage;
-
-  return particleData;
-};
-
-export const createCursorObjectData = (gl: WebGL2RenderingContext) => {
-  const cursorObjectTexture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, cursorObjectTexture);
-
-  const cursorObjectTextureSize = 128;
-  const cursorObjectPixels = new Array<number>();
-
-  for (let x = 0; x < cursorObjectTextureSize; x++) {
-    for (let y = 0; y < cursorObjectTextureSize; y++) {
-      const vector = vec2.fromValues(
-        x - cursorObjectTextureSize / 2,
-        y - cursorObjectTextureSize / 2
-      );
-
-      const length = Math.min(vec2.len(vector), cursorObjectTextureSize / 2);
-
-      vec2.normalize(vector, vector);
-      vec2.multiply(vector, vector, vec2.fromValues(0.5, 0.5));
-
-      cursorObjectPixels.push(
-        (vector[1] + 0.5) * 255, // R
-        (1 - (vector[0] + 0.5)) * 255, // G
-        (1 - (length / (cursorObjectTextureSize / 2)) ** 2) * 255 // Alpha
-      );
-    }
-  }
-
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGB8,
-    cursorObjectTextureSize,
-    cursorObjectTextureSize,
-    0,
-    gl.RGB,
-    gl.UNSIGNED_BYTE,
-    new Uint8Array(cursorObjectPixels)
-  );
-
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-
-  const cursorObjectVAO = gl.createVertexArray();
-  const cursorObjectVBO = gl.createBuffer();
-
-  gl.bindVertexArray(cursorObjectVAO);
-  gl.bindBuffer(gl.ARRAY_BUFFER, cursorObjectVBO);
-  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8 * 4, 0);
-  gl.enableVertexAttribArray(0);
-
-  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 8 * 4, 4 * 2);
-  gl.enableVertexAttribArray(1);
-
-  gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 8 * 4, 4 * 4);
-  gl.enableVertexAttribArray(2);
-
-  gl.vertexAttribPointer(3, 2, gl.FLOAT, false, 8 * 4, 4 * 6);
-  gl.enableVertexAttribArray(3);
-
-  gl.bindVertexArray(null);
-
-  return {
-    texture: cursorObjectTexture,
-    vao: cursorObjectVAO,
-    vbo: cursorObjectVBO,
-  };
-};
-
-export const createFramebufferData = (
+export const createForceVectorFramebufferData = (
   gl: WebGL2RenderingContext,
   width: number,
   height: number
@@ -388,8 +202,6 @@ export const createFramebufferData = (
 
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-
-  // const framebufferDimensions = [1024, 1024];
 
   const recreateFramebuffer = (
     gl: WebGL2RenderingContext,

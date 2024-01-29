@@ -3,8 +3,7 @@
 layout(location = 0) in vec2 position;
 layout(location = 1) in vec2 velocity;
 layout(location = 2) in vec2 origin;
-layout(location = 3) in float scale;
-layout(location = 4) in float alpha;
+layout(location = 3) in float alpha;
 
 uniform float deltaTime;
 uniform float time;
@@ -14,7 +13,6 @@ uniform vec2 canvasSize;
 out vec2 outPosition;
 out vec2 outVelocity;
 out vec2 outOrigin;
-out float outScale;
 out float outAlpha;
 
 const float RETURN_ACCELERATION = 8000.f;
@@ -86,6 +84,5 @@ void main() {
   outPosition = tempPosition;
   outVelocity = tempVelocity;
   outOrigin = origin;
-  outScale = scale;
   outAlpha = alpha;
 }

@@ -1,7 +1,7 @@
 #version 300 es
 
 layout(location = 0) in vec2 position;
-layout(location = 4) in float alpha;
+layout(location = 3) in float alpha;
 
 uniform vec2 canvasSize;
 

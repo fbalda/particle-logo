@@ -1,274 +1,320 @@
 import { vec2 } from "gl-matrix";
+import { createRotatedRect } from "../helpers";
 
-const CURSOR_OBJECT_SIZE_PIXELS = 150;
+const SIZE_PIXELS = 150;
 const MAX_SCALE_CURSOR_SPEED = 0.3;
 const PERPENDICULAR_SPEED_WEIGHT = 0.0;
-const FORCE_SCALE = 3.0;
+const FORCE_SCALE_FACTOR = 3.0;
+const TEXTURE_SIZE = 128;
 
-const generateCursorVertices = (cursorPosition: vec2, cursorMovement: vec2) => {
-  const screenSpacePointerPosition = {
-    x: (-0.5 + cursorPosition[0] / window.innerWidth) * 2,
-    y: (-0.5 + cursorPosition[1] / window.innerHeight) * 2,
-  };
-  const screenSpacePointerMovement = {
-    x: (cursorMovement[0] / window.innerWidth) * 2,
-    y: -(cursorMovement[1] / window.innerHeight) * 2,
-  };
+// Components per vertex attribute array
+const VERTEX_ARRAY_SETUP = [2, 2, 2];
 
-  const scaledCursorObjectSize = [
-    CURSOR_OBJECT_SIZE_PIXELS / window.innerWidth,
-    CURSOR_OBJECT_SIZE_PIXELS / window.innerHeight,
-  ];
+export interface CursorObjectData {
+  texture: WebGLTexture | null;
+  vao: WebGLVertexArrayObject | null;
+  vbo: WebGLBuffer | null;
+  vertexCount: number;
+  updateVertices: (cursorPosition: vec2, cursorMovement: vec2) => void;
+}
 
-  let posFront1 = vec2.create();
-  let posBack1 = vec2.create();
-  let posFront2 = vec2.create();
-  let posBack2 = vec2.create();
+const uvFromNormal = (v: vec2) => {
+  const u = vec2.create();
+  vec2.normalize(u, vec2.fromValues(v[0], v[1]));
+  vec2.multiply(u, u, vec2.fromValues(1.414213, 1.414213));
+  vec2.add(u, u, vec2.fromValues(1, 1));
+  vec2.multiply(u, u, vec2.fromValues(0.5, 0.5));
+  return u;
+};
 
-  let uf1 = vec2.fromValues(0, 0);
-  let ub1 = vec2.fromValues(0, 0);
-  let uf2 = vec2.fromValues(0, 0);
-  let ub2 = vec2.fromValues(0, 0);
+const generateCursorVertices = (
+  absoluteCursorPosition: vec2,
+  absoluteCursorMovement: vec2
+) => {
+  const screenSpacePointerPosition = vec2.fromValues(
+    (-0.5 + absoluteCursorPosition[0] / window.innerWidth) * 2,
+    (-0.5 + absoluteCursorPosition[1] / window.innerHeight) * -2
+  );
+  const screenSpacePointerMovement = vec2.fromValues(
+    (absoluteCursorMovement[0] / window.innerWidth) * 2,
+    -(absoluteCursorMovement[1] / window.innerHeight) * 2
+  );
 
-  let s1 = vec2.fromValues(0.5, 0.5);
-  let s2 = vec2.fromValues(0.5, 0.5);
+  const halfSize = vec2.fromValues(
+    (SIZE_PIXELS / window.innerWidth) * 0.5,
+    (SIZE_PIXELS / window.innerHeight) * 0.5
+  );
 
   const vertexData: number[] = [];
 
-  const pushVertexData = (
-    offset: vec2,
-    uv: vec2,
-    force: vec2,
-    normal: vec2
-  ) => {
+  let vertexCount = 0;
+
+  const pushVertexData = (offset: vec2, uv: vec2, force: vec2) => {
+    vertexCount++;
     vertexData.push(
-      screenSpacePointerPosition.x + offset[0],
-      -screenSpacePointerPosition.y + offset[1],
+      screenSpacePointerPosition[0] + offset[0],
+      screenSpacePointerPosition[1] + offset[1],
       uv[0],
       uv[1],
       force[0],
-      force[1],
-      normal[0],
-      normal[1]
+      force[1]
     );
   };
 
-  if (
-    screenSpacePointerMovement.x !== 0 ||
-    screenSpacePointerMovement.y !== 0
-  ) {
-    const normalizedCursorMovementVector = vec2.fromValues(
-      screenSpacePointerMovement.x,
-      screenSpacePointerMovement.y
-    );
+  const generateStationaryCursorVertices = () => {
+    // Stationary, set to none (0.5 maps to 0 in shader)
+    const movementForce = vec2.fromValues(0.5, 0.5);
 
-    const cursorSpeed = vec2.length(normalizedCursorMovementVector);
+    const cornersOffsets = [
+      vec2.fromValues(-halfSize[0], -halfSize[1]),
+      vec2.fromValues(halfSize[0], -halfSize[1]),
+      vec2.fromValues(-halfSize[0], halfSize[1]),
+      vec2.fromValues(halfSize[0], halfSize[1]),
+    ];
 
-    vec2.normalize(
-      normalizedCursorMovementVector,
-      normalizedCursorMovementVector
-    );
+    const cornerTextureCoordinates = [
+      vec2.fromValues(0, 0),
+      vec2.fromValues(1, 0),
+      vec2.fromValues(0, 1),
+      vec2.fromValues(1, 1),
+    ];
 
-    const cursorDirectionPerpVector = vec2.fromValues(
-      normalizedCursorMovementVector[1],
-      -normalizedCursorMovementVector[0]
-    );
+    cornersOffsets.forEach((offset, index) => {
+      pushVertexData(offset, cornerTextureCoordinates[index], movementForce);
+    });
+  };
 
-    const v1Norm = vec2.fromValues(
-      normalizedCursorMovementVector[0],
-      normalizedCursorMovementVector[1]
-    );
+  const generateMovingCursorVertices = () => {
+    const cursorVelocity = vec2.length(screenSpacePointerMovement);
 
-    const v2Norm = vec2.fromValues(
-      cursorDirectionPerpVector[0],
-      cursorDirectionPerpVector[1]
+    const cursorDirection = vec2.create();
+    vec2.normalize(cursorDirection, screenSpacePointerMovement);
+
+    const cursorDirectionPerp = vec2.fromValues(
+      cursorDirection[1],
+      -cursorDirection[0]
     );
 
     // Vector pointing in the direction of the mouse movement, scaled by the
     // size of the cursor object
-    const v1 = vec2.fromValues(
-      normalizedCursorMovementVector[0] * scaledCursorObjectSize[0] * 0.5,
-      normalizedCursorMovementVector[1] * scaledCursorObjectSize[1] * 0.5
+    const scaledXAxis = vec2.fromValues(
+      cursorDirection[0] * halfSize[0],
+      cursorDirection[1] * halfSize[1]
     );
 
     // Vector perpendicular to the direction of the mouse movement, scaled by
     // the size of the cursor object
-    const v2 = vec2.fromValues(
-      cursorDirectionPerpVector[0] * scaledCursorObjectSize[0] * 0.5,
-      cursorDirectionPerpVector[1] * scaledCursorObjectSize[1] * 0.5
+    const scaledYAxis = vec2.fromValues(
+      cursorDirectionPerp[0] * halfSize[0],
+      cursorDirectionPerp[1] * halfSize[1]
     );
 
-    const scale =
-      (Math.min(MAX_SCALE_CURSOR_SPEED, cursorSpeed) / MAX_SCALE_CURSOR_SPEED) *
-      FORCE_SCALE;
+    const forceScale =
+      (Math.min(MAX_SCALE_CURSOR_SPEED, cursorVelocity) /
+        MAX_SCALE_CURSOR_SPEED) *
+      FORCE_SCALE_FACTOR;
 
     // Lateral push forces
-    s2 = [
-      ((normalizedCursorMovementVector[0] +
-        cursorDirectionPerpVector[0] * PERPENDICULAR_SPEED_WEIGHT) *
-        scale +
-        1) /
-        2,
-      ((normalizedCursorMovementVector[1] +
-        cursorDirectionPerpVector[1] * PERPENDICULAR_SPEED_WEIGHT) *
-        -scale +
-        1) /
-        2,
+    const lateralForces = [
+      vec2.fromValues(
+        ((cursorDirection[0] -
+          cursorDirectionPerp[0] * PERPENDICULAR_SPEED_WEIGHT) *
+          forceScale +
+          1) /
+          2,
+        ((cursorDirection[1] -
+          cursorDirectionPerp[1] * PERPENDICULAR_SPEED_WEIGHT) *
+          -forceScale +
+          1) /
+          2
+      ),
+      vec2.fromValues(
+        ((cursorDirection[0] +
+          cursorDirectionPerp[0] * PERPENDICULAR_SPEED_WEIGHT) *
+          forceScale +
+          1) /
+          2,
+        ((cursorDirection[1] +
+          cursorDirectionPerp[1] * PERPENDICULAR_SPEED_WEIGHT) *
+          -forceScale +
+          1) /
+          2
+      ),
     ];
-    s1 = [
-      ((normalizedCursorMovementVector[0] -
-        cursorDirectionPerpVector[0] * PERPENDICULAR_SPEED_WEIGHT) *
-        scale +
-        1) /
-        2,
-      ((normalizedCursorMovementVector[1] -
-        cursorDirectionPerpVector[1] * PERPENDICULAR_SPEED_WEIGHT) *
-        -scale +
-        1) /
-        2,
+
+    const corners = createRotatedRect(scaledXAxis, scaledYAxis);
+
+    const cornerTextureCoordinates = createRotatedRect(
+      cursorDirection,
+      cursorDirectionPerp
+    ).map((normal) => uvFromNormal(normal));
+
+    // Back corners are stretched out to "smear" the cursor with motion
+    vec2.sub(corners[2], corners[2], screenSpacePointerMovement);
+    vec2.sub(corners[3], corners[3], screenSpacePointerMovement);
+
+    const vertices = [
+      corners[1],
+      corners[0],
+      vec2.fromValues(scaledYAxis[0], scaledYAxis[1]),
+      vec2.fromValues(-scaledYAxis[0], -scaledYAxis[1]),
+      vec2.fromValues(
+        -screenSpacePointerMovement[0] + scaledYAxis[0],
+        -screenSpacePointerMovement[1] + scaledYAxis[1]
+      ),
+      vec2.fromValues(
+        -(scaledYAxis[0] + screenSpacePointerMovement[0]),
+        -(scaledYAxis[1] + screenSpacePointerMovement[1])
+      ),
+      corners[3],
+      corners[2],
     ];
 
-    const vf1Norm = vec2.fromValues(
-      v1Norm[0] - v2Norm[0],
-      v1Norm[1] - v2Norm[1]
+    const centerTextureCoordinates = [vec2.create(), vec2.create()];
+
+    vec2.lerp(
+      centerTextureCoordinates[0],
+      cornerTextureCoordinates[0],
+      cornerTextureCoordinates[2],
+      0.5
     );
 
-    const vf2Norm = vec2.fromValues(
-      v1Norm[0] + v2Norm[0],
-      v1Norm[1] + v2Norm[1]
+    vec2.lerp(
+      centerTextureCoordinates[1],
+      cornerTextureCoordinates[1],
+      cornerTextureCoordinates[3],
+      0.5
     );
 
-    const vb1Norm = vec2.fromValues(
-      -v1Norm[0] - v2Norm[0],
-      -v1Norm[1] - v2Norm[1]
-    );
+    const textureCoordinates = [
+      cornerTextureCoordinates[1],
+      cornerTextureCoordinates[0],
+      centerTextureCoordinates[1],
+      centerTextureCoordinates[0],
+      centerTextureCoordinates[1],
+      centerTextureCoordinates[0],
+      cornerTextureCoordinates[3],
+      cornerTextureCoordinates[2],
+    ];
 
-    const vb2Norm = vec2.fromValues(
-      -v1Norm[0] + v2Norm[0],
-      -v1Norm[1] + v2Norm[1]
-    );
+    vertices.forEach((position, index) => {
+      pushVertexData(
+        position,
+        textureCoordinates[index],
+        lateralForces[index % 2]
+      );
+    });
+  };
 
-    // Outer front positions
-    posFront1 = vec2.fromValues(v1[0] - v2[0], v1[1] - v2[1]);
-    posFront2 = vec2.fromValues(v1[0] + v2[0], v1[1] + v2[1]);
-
-    // Inner front positions
-    const posFrontInner1 = vec2.fromValues(-v2[0], -v2[1]);
-    const posFrontInner2 = vec2.fromValues(v2[0], v2[1]);
-
-    // Inner back positions
-    const posBackInner1 = vec2.fromValues(
-      -(v2[0] + screenSpacePointerMovement.x),
-      -(v2[1] + screenSpacePointerMovement.y)
-    );
-    const posBackInner2 = vec2.fromValues(
-      -screenSpacePointerMovement.x + v2[0],
-      -screenSpacePointerMovement.y + v2[1]
-    );
-
-    // Outer back positions
-    posBack1 = vec2.fromValues(
-      -(v1[0] + v2[0] + screenSpacePointerMovement.x),
-      -(v1[1] + v2[1] + screenSpacePointerMovement.y)
-    );
-    posBack2 = vec2.fromValues(
-      -(v1[0] + screenSpacePointerMovement.x) + v2[0],
-      -(v1[1] + screenSpacePointerMovement.y) + v2[1]
-    );
-
-    const uvFromNormal = (v: vec2) => {
-      const u = vec2.create();
-      vec2.normalize(u, vec2.fromValues(v[0], v[1]));
-      vec2.multiply(u, u, vec2.fromValues(1.414213, 1.414213));
-      vec2.add(u, u, vec2.fromValues(1, 1));
-      vec2.multiply(u, u, vec2.fromValues(0.5, 0.5));
-      return u;
-    };
-
-    uf1 = uvFromNormal(vf1Norm);
-    ub1 = uvFromNormal(vb1Norm);
-    uf2 = uvFromNormal(vf2Norm);
-    ub2 = uvFromNormal(vb2Norm);
-
-    const um1 = vec2.create();
-    const um2 = vec2.create();
-
-    vec2.lerp(um1, uf1, ub1, 0.5);
-    vec2.lerp(um2, uf2, ub2, 0.5);
-
-    pushVertexData(posFront2, uf2, s2, vec2.fromValues(0, 0));
-    pushVertexData(posFront1, uf1, s1, vec2.fromValues(0, 0));
-
-    pushVertexData(posFrontInner2, um2, s2, vec2.fromValues(0, 0));
-    pushVertexData(posFrontInner1, um1, s1, vec2.fromValues(0, 0));
-
-    pushVertexData(posBackInner2, um2, s2, vec2.fromValues(0, 0));
-    pushVertexData(posBackInner1, um1, s1, vec2.fromValues(0, 0));
-
-    pushVertexData(posBack2, ub2, s2, vec2.fromValues(0, 0));
-    pushVertexData(posBack1, ub1, s1, vec2.fromValues(0, 0));
-  }
-  // Stationary cursor
-  else {
-    const vf1 = vec2.fromValues(
-      -scaledCursorObjectSize[0] * 0.5,
-      -scaledCursorObjectSize[1] * 0.5
-    );
-    const vb1 = vec2.fromValues(
-      scaledCursorObjectSize[0] * 0.5,
-      -scaledCursorObjectSize[1] * 0.5
-    );
-    const vf2 = vec2.fromValues(
-      -scaledCursorObjectSize[0] * 0.5,
-      scaledCursorObjectSize[1] * 0.5
-    );
-    const vb2 = vec2.fromValues(
-      scaledCursorObjectSize[0] * 0.5,
-      scaledCursorObjectSize[1] * 0.5
-    );
-
-    const uf1 = vec2.fromValues(0, 0);
-    const ub1 = vec2.fromValues(1, 0);
-    const uf2 = vec2.fromValues(0, 1);
-    const ub2 = vec2.fromValues(1, 1);
-
-    vertexData.push(
-      screenSpacePointerPosition.x + vf1[0],
-      -screenSpacePointerPosition.y + vf1[1],
-      uf1[0],
-      uf1[1],
-      s1[0],
-      s1[1],
-      uf1[0],
-      uf1[1],
-      screenSpacePointerPosition.x + vb1[0],
-      -screenSpacePointerPosition.y + vb1[1],
-      ub1[0],
-      ub1[1],
-      s1[0],
-      s1[1],
-      ub1[0],
-      ub1[1],
-      screenSpacePointerPosition.x + vf2[0],
-      -screenSpacePointerPosition.y + vf2[1],
-      uf2[0],
-      uf2[1],
-      s2[0],
-      s2[1],
-      uf2[0],
-      uf2[1],
-      screenSpacePointerPosition.x + vb2[0],
-      -screenSpacePointerPosition.y + vb2[1],
-      ub2[0],
-      ub2[1],
-      s2[0],
-      s2[1],
-      ub2[0],
-      ub2[1]
-    );
+  if (
+    screenSpacePointerMovement[0] !== 0 ||
+    screenSpacePointerMovement[1] !== 0
+  ) {
+    generateMovingCursorVertices();
+  } else {
+    generateStationaryCursorVertices();
   }
 
-  return vertexData;
+  return { vertexData, vertexCount };
 };
 
-export default generateCursorVertices;
+export const createCursorObjectData = (
+  gl: WebGL2RenderingContext
+): CursorObjectData | undefined => {
+  const cursorObjectTexture = gl.createTexture();
+
+  // TODO: Handle failure to create resources
+
+  gl.bindTexture(gl.TEXTURE_2D, cursorObjectTexture);
+
+  const cursorObjectPixels = new Array<number>();
+
+  for (let x = 0; x < TEXTURE_SIZE; x++) {
+    for (let y = 0; y < TEXTURE_SIZE; y++) {
+      const vector = vec2.fromValues(
+        x - TEXTURE_SIZE / 2,
+        y - TEXTURE_SIZE / 2
+      );
+
+      const length = Math.min(vec2.len(vector), TEXTURE_SIZE / 2);
+
+      vec2.normalize(vector, vector);
+      vec2.multiply(vector, vector, vec2.fromValues(0.5, 0.5));
+
+      cursorObjectPixels.push(
+        (1 - (vector[0] + 0.5)) * 255, // X
+        (vector[1] + 0.5) * 255, // Y
+        (1 - (length / (TEXTURE_SIZE / 2)) ** 2) * 255 // Alpha
+      );
+    }
+  }
+
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGB8,
+    TEXTURE_SIZE,
+    TEXTURE_SIZE,
+    0,
+    gl.RGB,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array(cursorObjectPixels)
+  );
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+  const cursorObjectVAO = gl.createVertexArray();
+  const cursorObjectVBO = gl.createBuffer();
+
+  gl.bindVertexArray(cursorObjectVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, cursorObjectVBO);
+
+  const stride = VERTEX_ARRAY_SETUP.reduce<number>(
+    (current, componentCount) => current + componentCount * 4,
+    0
+  );
+
+  VERTEX_ARRAY_SETUP.reduce<number>((offset, componentCount, index) => {
+    gl.vertexAttribPointer(
+      index,
+      componentCount,
+      gl.FLOAT,
+      false,
+      stride,
+      offset * 4
+    );
+    gl.enableVertexAttribArray(index);
+    return offset + componentCount;
+  }, 0);
+
+  gl.bindVertexArray(null);
+
+  const cursorObjectData: CursorObjectData = {
+    texture: cursorObjectTexture,
+    vao: cursorObjectVAO,
+    vbo: cursorObjectVBO,
+    vertexCount: 0,
+    updateVertices: () => {},
+  };
+
+  const updateVertices = (cursorPosition: vec2, cursorMovement: vec2) => {
+    const { vertexData, vertexCount } = generateCursorVertices(
+      cursorPosition,
+      cursorMovement
+    );
+    cursorObjectData.vertexCount = vertexCount;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, cursorObjectVBO);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array(vertexData),
+      gl.DYNAMIC_DRAW
+    );
+  };
+
+  cursorObjectData.updateVertices = updateVertices;
+
+  return cursorObjectData;
+};

@@ -31,7 +31,9 @@
     updateLogoUrl = canvasContext.updateLogoUrl;
   });
 
-  $: updateLogoUrl?.(logoUrl);
+  $: if (logoUrl) {
+    updateLogoUrl?.(logoUrl);
+  }
 
   const onResize = () => {
     updateResolution?.();

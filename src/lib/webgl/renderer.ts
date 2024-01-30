@@ -5,7 +5,7 @@ import { createForceVectorFramebufferData, createShaders } from "./resources";
 import { setupLogoParticles, type LogoParticleData } from "./logoParticles";
 
 const RESOURCE_REFRESH_DEBOUNCE_DELAY_MS = 300;
-const LOGO_SIZE = 500;
+const LOGO_SIZE = 250;
 const CLEAR_COLOR: [number, number, number, number] = [0.0, 0.0, 0.0, 1.0];
 const CURSOR_DEBUG_DRAW = false;
 
@@ -28,8 +28,7 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.BACK);
+  gl.activeTexture(gl.TEXTURE0);
 
   const { cursorShader, particleShader, particleTransformShader } =
     createShaders(gl);
@@ -73,7 +72,6 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
 
       gl.useProgram(cursorShader.program);
 
-      gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, cursorObject.texture);
 
       gl.uniform1i(cursorShader.uniformLocations.get("radialMask") || null, 0);
@@ -81,10 +79,10 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, cursorObject.vertexCount);
 
       gl.bindTexture(gl.TEXTURE_2D, null);
-
-      gl.bindVertexArray(null);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
+
+    gl.bindVertexArray(null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   };
 
   const updateParticles = (
@@ -92,13 +90,13 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     time: number,
     writeBufferIndex: number
   ) => {
-    if (!particleData) {
+    if (!particleData || !particleTransformShader.transformFeedback) {
       return;
     }
 
     gl.bindTransformFeedback(
       gl.TRANSFORM_FEEDBACK,
-      particleTransformShader.transformFeedback || null
+      particleTransformShader.transformFeedback
     );
 
     gl.bindVertexArray(particleData.buffers[readBufferIndex].vao);
@@ -111,7 +109,6 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     gl.enable(gl.RASTERIZER_DISCARD);
     gl.useProgram(particleTransformShader.program);
 
-    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, forceVectorFramebufferData.renderTexture);
     gl.uniform1i(
       particleTransformShader.uniformLocations.get("accelerationVectorMap") ||
@@ -125,7 +122,6 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
 
     gl.uniform1f(
       particleTransformShader.uniformLocations.get("deltaTime") || null,
-
       deltaTime
     );
     gl.uniform1f(
@@ -141,8 +137,6 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
     gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
     gl.disable(gl.RASTERIZER_DISCARD);
-
-    readBufferIndex = writeBufferIndex;
   };
 
   const renderParticles = (writeBufferIndex: number) => {
@@ -171,12 +165,13 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
 
     gl.useProgram(cursorShader.program);
 
-    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, cursorObject.texture);
 
     gl.uniform1i(cursorShader.uniformLocations.get("radialMask") || null, 0);
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, cursorObject.vertexCount);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
   };
 
   const render = (
@@ -205,6 +200,8 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     if (CURSOR_DEBUG_DRAW) {
       debugRenderCursorForceVectors();
     }
+
+    readBufferIndex = writeBufferIndex;
   };
 
   const refreshResources = debounce(() => {

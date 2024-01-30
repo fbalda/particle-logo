@@ -11,7 +11,7 @@ The program uses transform feedback to simulate the particles on the GPU with sh
 A shape of force vectors are drawn onto a framebuffer at the position of the cursor every frame. The texture of that framebuffer is then sampled in the simulation shader to check if/where the particles should be pushed.
 Every particle holds information about its origin (its position in the logo), alpha as well as its current position and velocity. Its position, velocity and origin are used to calculate the acceleration back to the origin.
 A URI-encoded image URL can be added as a value for the `logo_url` parameter in the URL hash to change the rendered image (append `#logo_url=YOUR_URI_ENCODED_URL` to the base URL).
-Currently only the image alpha is respected and all color is converted to white, meaning images without alpha information will just result in a white square.
+Currently only the image alpha is respected and all color is converted to white, meaning images without alpha information will just result in a white square. Also the SVG needs to have a width and height parameter to work on Firefox Mobile (Android) due to a bug.
 
 ## TODO
 

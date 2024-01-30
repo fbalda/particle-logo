@@ -21,8 +21,6 @@ export const getImageDataFromUrl = async (
   const image = new Image();
 
   image.src = url;
-  image.width = width;
-  image.height = height;
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -41,10 +39,8 @@ export const getImageDataFromUrl = async (
     return;
   }
 
-  const logoScale = 0.5;
-
-  canvas.width = image.width * logoScale;
-  canvas.height = image.height * logoScale;
+  canvas.width = width;
+  canvas.height = height;
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
   return context.getImageData(0, 0, canvas.width, canvas.height);

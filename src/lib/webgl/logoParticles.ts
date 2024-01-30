@@ -63,10 +63,10 @@ export const setupLogoParticles = (
         const pixelX = startX + i;
         const pixelY = startY + j;
 
-        const pixelIndex =
-          (i + (imageData.height - j - 1) * imageData.width) * 4 + 3;
+        const pixelIndex = i + (imageData.height - j - 1) * imageData.width;
+        const pixelAlpha = imageData.data[pixelIndex * 4 + 3];
 
-        if (imageData.data[pixelIndex] > 0) {
+        if (pixelAlpha > 0) {
           particleVertexData.push(
             pixelX, // Position X
             pixelY, // Position Y
@@ -74,7 +74,7 @@ export const setupLogoParticles = (
             0, // Velocity Y
             pixelX, // Origin X
             pixelY, // Origin Y
-            imageData.data[pixelIndex] / 255 // Alpha
+            pixelAlpha / 255 // Alpha
           );
 
           particleData.particleCount++;

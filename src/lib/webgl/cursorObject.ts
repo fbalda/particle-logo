@@ -312,6 +312,7 @@ export const createCursorObjectData = (
       new Float32Array(vertexData),
       gl.DYNAMIC_DRAW
     );
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
   };
 
   cursorObjectData.updateVertices = updateVertices;

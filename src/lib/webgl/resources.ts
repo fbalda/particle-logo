@@ -102,6 +102,8 @@ const compileShaders = (
         gl.INTERLEAVED_ATTRIBS
       );
 
+      gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+
       shaderData.transformFeedback = transformFeedback || undefined;
     }
 

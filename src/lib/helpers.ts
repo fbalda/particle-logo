@@ -20,6 +20,7 @@ export const getImageDataFromUrl = async (
 ) => {
   const image = new Image();
 
+  image.crossOrigin = "anonymous";
   image.src = url;
 
   try {
@@ -31,7 +32,7 @@ export const getImageDataFromUrl = async (
     return undefined;
   }
 
-  const canvas = document.createElement("canvas");
+  const canvas = new OffscreenCanvas(width, height);
   const context = canvas.getContext("2d");
 
   if (!context) {

@@ -236,11 +236,7 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     const requestId = ++lastLogoRequestId;
 
     void (async () => {
-      const imageData = await getImageDataFromUrl(
-        logoUrl,
-        LOGO_SIZE,
-        LOGO_SIZE
-      );
+      const imageData = await getImageDataFromUrl(logoUrl, LOGO_SIZE);
 
       if (requestId !== lastLogoRequestId) {
         // No logo requested in the meantime

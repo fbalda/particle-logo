@@ -13,11 +13,7 @@ export const resetUrlHash = () => {
   history.replaceState(null, "", " ");
 };
 
-export const getImageDataFromUrl = async (
-  url: string,
-  width: number,
-  height: number
-) => {
+export const getImageDataFromUrl = async (url: string, maxSize: number) => {
   const image = new Image();
 
   image.crossOrigin = "anonymous";
@@ -32,7 +28,12 @@ export const getImageDataFromUrl = async (
     return undefined;
   }
 
-  const canvas = new OffscreenCanvas(width, height);
+  const imageScale =
+    maxSize / Math.max(Math.max(image.width, image.height), maxSize);
+
+  const scaledSize = [image.width * imageScale, image.height * imageScale];
+
+  const canvas = new OffscreenCanvas(scaledSize[0], scaledSize[1]);
   const context = canvas.getContext("2d");
 
   if (!context) {
@@ -40,11 +41,8 @@ export const getImageDataFromUrl = async (
     return;
   }
 
-  canvas.width = width;
-  canvas.height = height;
-
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return context.getImageData(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, scaledSize[0], scaledSize[1]);
+  return context.getImageData(0, 0, scaledSize[0], scaledSize[1]);
 };
 
 export const createRotatedRect = (rotatedXAxis: vec2, rotatedYAxis: vec2) => {

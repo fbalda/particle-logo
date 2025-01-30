@@ -4,17 +4,43 @@
   import Cursor from "./lib/Cursor.svelte";
   import GhostIcon from "@assets/ghost-solid.svg";
   import { resetUrlHash } from "./lib/helpers";
+  import type { KeyboardEventHandler } from "svelte/elements";
 
   const logoUrlParameterName = "logo_url";
 
   let cursorPosition: { x: number; y: number } | undefined = undefined;
-  let cursorMovement = { x: 0, y: 0 };
+
+  let cursorMovement = { x: 100, y: 0 };
   let isCursorHidden = false;
+
+  let test = false;
 
   let logoUrl = "";
 
+  const onKeyDown: KeyboardEventHandler<Window> = (event) => {
+    if (event.key === "a") {
+      // test = !test;
+
+      test = true;
+
+      cursorPosition = {
+        x: window.innerWidth / 2 - 75,
+        y: window.innerHeight / 2,
+      };
+
+      // if (test) {
+      //   cursorPosition = { x: 0, y: 0 };
+      // } else {
+      //   cursorPosition = {
+      //     x: window.innerWidth / 2,
+      //     y: window.innerHeight / 2,
+      //   };
+      // }
+    }
+  };
+
   const onMouseEnter = (event: MouseEvent) => {
-    cursorPosition = { x: event.clientX, y: event.clientY };
+    // cursorPosition = { x: event.clientX, y: event.clientY };
     cursorMovement = { x: 0, y: 0 };
   };
 
@@ -22,7 +48,6 @@
     if (!event.isPrimary || event.pointerType !== "touch") {
       return;
     }
-
     cursorPosition = { x: event.clientX, y: event.clientY };
   };
 
@@ -30,22 +55,19 @@
     if (!event.isPrimary || event.pointerType !== "touch") {
       return;
     }
-
-    cursorPosition = undefined;
+    // cursorPosition = undefined;
   };
 
   const onPointerMove = (event: PointerEvent) => {
     if (!event.isPrimary) {
       return;
     }
-
     if (cursorPosition) {
       cursorMovement = {
         x: event.clientX - cursorPosition.x,
         y: event.clientY - cursorPosition.y,
       };
     }
-
     cursorPosition = { x: event.clientX, y: event.clientY };
   };
 
@@ -85,7 +107,7 @@
   on:mouseenter={onMouseEnterDocument}
 />
 
-<svelte:window on:hashchange={onHashChange} />
+<svelte:window on:hashchange={onHashChange} on:keydown={onKeyDown} />
 
 <main
   on:mouseenter={onMouseEnter}

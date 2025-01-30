@@ -48,6 +48,9 @@
       deltaTime = 0.5;
     }
 
+    cursorMovement.x = 0;
+    cursorMovement.y = 0;
+
     render?.(
       timestamp / 1000,
       deltaTime,
@@ -57,8 +60,13 @@
       vec2.fromValues(cursorMovement.x, cursorMovement.y)
     );
 
-    cursorMovement.x = 0;
-    cursorMovement.y = 0;
+    // cursorMovement.x = 0;
+    // cursorMovement.y = 0;
+
+    // if (cursorPosition) {
+    //   cursorPosition.x = 0;
+    //   cursorPosition.y = 0;
+    // }
 
     requestAnimationFrame(frame);
   };

@@ -1,11 +1,11 @@
 import { vec2 } from "gl-matrix";
 import { createRotatedRect } from "../helpers";
 
-const SIZE_PIXELS = 150;
+// const SIZE_PIXELS = 150;
 const MAX_SCALE_CURSOR_SPEED = 0.3;
 const PERPENDICULAR_SPEED_WEIGHT = 0.0;
 const FORCE_SCALE_FACTOR = 3.0;
-const TEXTURE_SIZE = 128;
+// const TEXTURE_SIZE = 128;
 
 // Components per vertex attribute array
 const VERTEX_ARRAY_SETUP = [2, 2, 2];
@@ -29,7 +29,8 @@ const uvFromNormal = (v: vec2) => {
 
 const generateCursorVertices = (
   absoluteCursorPosition: vec2,
-  absoluteCursorMovement: vec2
+  absoluteCursorMovement: vec2,
+  cursorSize: number
 ) => {
   const screenSpacePointerPosition = vec2.fromValues(
     (-0.5 + absoluteCursorPosition[0] / window.innerWidth) * 2,
@@ -37,12 +38,12 @@ const generateCursorVertices = (
   );
   const screenSpacePointerMovement = vec2.fromValues(
     (absoluteCursorMovement[0] / window.innerWidth) * 2,
-    -(absoluteCursorMovement[1] / window.innerHeight) * 2
+    (absoluteCursorMovement[1] / window.innerHeight) * -2
   );
 
   const halfSize = vec2.fromValues(
-    (SIZE_PIXELS / window.innerWidth) * 0.5,
-    (SIZE_PIXELS / window.innerHeight) * 0.5
+    (cursorSize / window.innerWidth) * 0.5,
+    (cursorSize / window.innerHeight) * 0.5
   );
 
   const vertexData: number[] = [];
@@ -219,7 +220,8 @@ const generateCursorVertices = (
 };
 
 export const createCursorObjectData = (
-  gl: WebGL2RenderingContext
+  gl: WebGL2RenderingContext,
+  size: number
 ): CursorObjectData | undefined => {
   const cursorObjectTexture = gl.createTexture();
 
@@ -229,22 +231,24 @@ export const createCursorObjectData = (
 
   const cursorObjectPixels = new Array<number>();
 
-  for (let x = 0; x < TEXTURE_SIZE; x++) {
-    for (let y = 0; y < TEXTURE_SIZE; y++) {
-      const vector = vec2.fromValues(
-        x - TEXTURE_SIZE / 2,
-        y - TEXTURE_SIZE / 2
-      );
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const vector = vec2.fromValues(x - size / 2, y - size / 2);
+      const length = Math.min(vec2.len(vector), size / 2);
 
-      const length = Math.min(vec2.len(vector), TEXTURE_SIZE / 2);
+      // const revVector =
+
+      const scale = 1.0 - length / (size / 2);
 
       vec2.normalize(vector, vector);
+      vec2.multiply(vector, vector, vec2.fromValues(scale, scale));
       vec2.multiply(vector, vector, vec2.fromValues(0.5, 0.5));
 
       cursorObjectPixels.push(
-        (1 - (vector[0] + 0.5)) * 255, // X
+        (vector[0] + 0.5) * 255, // X
         (vector[1] + 0.5) * 255, // Y
-        (1 - (length / (TEXTURE_SIZE / 2)) ** 2) * 255 // Alpha
+
+        (1 - (length / (size / 2)) ** 2) * 255 // Alpha
       );
     }
   }
@@ -253,8 +257,8 @@ export const createCursorObjectData = (
     gl.TEXTURE_2D,
     0,
     gl.RGB8,
-    TEXTURE_SIZE,
-    TEXTURE_SIZE,
+    size,
+    size,
     0,
     gl.RGB,
     gl.UNSIGNED_BYTE,
@@ -302,7 +306,8 @@ export const createCursorObjectData = (
   const updateVertices = (cursorPosition: vec2, cursorMovement: vec2) => {
     const { vertexData, vertexCount } = generateCursorVertices(
       cursorPosition,
-      cursorMovement
+      cursorMovement,
+      size
     );
     cursorObjectData.vertexCount = vertexCount;
 

@@ -8,6 +8,7 @@ const RESOURCE_REFRESH_DEBOUNCE_DELAY_MS = 300;
 const LOGO_SIZE = 250;
 const CLEAR_COLOR: [number, number, number, number] = [0.0, 0.0, 0.0, 1.0];
 const CURSOR_DEBUG_DRAW = false;
+const CURSOR_SIZE_PIXELS = 152;
 
 const setupRenderer = (canvasElement: HTMLCanvasElement) => {
   const canvasResolution = { x: 0, y: 0 };
@@ -35,7 +36,7 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
 
   let particleData: LogoParticleData | undefined = undefined;
 
-  const cursorObject = createCursorObjectData(gl);
+  const cursorObject = createCursorObjectData(gl, CURSOR_SIZE_PIXELS);
 
   const forceVectorFramebufferData = createForceVectorFramebufferData(
     gl,
@@ -76,6 +77,23 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
 
       gl.uniform1i(cursorShader.uniformLocations.get("radialMask") || null, 0);
 
+      gl.uniform2f(
+        cursorShader.uniformLocations.get("canvasSize") || null,
+        canvasResolution.x,
+        canvasResolution.y
+      );
+
+      gl.uniform2f(
+        cursorShader.uniformLocations.get("velocity") || null,
+        cursorMovement[0],
+        -cursorMovement[1]
+      );
+
+      gl.uniform1f(
+        cursorShader.uniformLocations.get("cursorSize") || null,
+        CURSOR_SIZE_PIXELS
+      );
+
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, cursorObject.vertexCount);
 
       gl.bindTexture(gl.TEXTURE_2D, null);
@@ -88,6 +106,7 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
   const updateParticles = (
     deltaTime: number,
     time: number,
+    cursorSize: number,
     writeBufferIndex: number
   ) => {
     if (!particleData || !particleTransformShader.transformFeedback) {
@@ -127,6 +146,10 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     gl.uniform1f(
       particleTransformShader.uniformLocations.get("time") || null,
       time
+    );
+    gl.uniform1f(
+      particleTransformShader.uniformLocations.get("cursorSize") || null,
+      cursorSize
     );
     gl.uniform2f(
       particleTransformShader.uniformLocations.get("canvasSize") || null,
@@ -195,7 +218,7 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     const writeBufferIndex = 1 - readBufferIndex;
 
     renderForceVectorFramebuffer(cursorPosition, cursorMovement);
-    updateParticles(deltaTime, time, writeBufferIndex);
+    updateParticles(deltaTime, time, CURSOR_SIZE_PIXELS, writeBufferIndex);
     renderParticles(writeBufferIndex);
     if (CURSOR_DEBUG_DRAW) {
       debugRenderCursorForceVectors();

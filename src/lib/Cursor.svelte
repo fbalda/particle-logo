@@ -2,7 +2,7 @@
   export let position: { x: number; y: number } | undefined;
   export let isHidden: boolean;
 
-  const SIZE = 20;
+  const SIZE = 76;
 </script>
 
 <div

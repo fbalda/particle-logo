@@ -3,12 +3,13 @@ import { debounce, getImageDataFromUrl, resetUrlHash } from "../helpers";
 import { createCursorObjectData } from "./cursorObject";
 import { createForceVectorFramebufferData, createShaders } from "./resources";
 import { setupLogoParticles, type LogoParticleData } from "./logoParticles";
+import { CURSOR_SIZE_CSS_PIXELS } from "../../constants";
 
 const RESOURCE_REFRESH_DEBOUNCE_DELAY_MS = 300;
 const LOGO_SIZE = 250;
 const CLEAR_COLOR: [number, number, number, number] = [0.0, 0.0, 0.0, 1.0];
 const CURSOR_DEBUG_DRAW = false;
-const CURSOR_SIZE_PIXELS = 152;
+const CURSOR_SIZE_PIXELS = CURSOR_SIZE_CSS_PIXELS * 2 * devicePixelRatio;
 
 const setupRenderer = (canvasElement: HTMLCanvasElement) => {
   const canvasResolution = { x: 0, y: 0 };

@@ -1,11 +1,9 @@
 import { vec2 } from "gl-matrix";
 import { createRotatedRect } from "../helpers";
 
-// const SIZE_PIXELS = 150;
 const MAX_SCALE_CURSOR_SPEED = 0.3;
 const PERPENDICULAR_SPEED_WEIGHT = 0.0;
 const FORCE_SCALE_FACTOR = 3.0;
-// const TEXTURE_SIZE = 128;
 
 // Components per vertex attribute array
 const VERTEX_ARRAY_SETUP = [2, 2, 2];
@@ -226,7 +224,6 @@ export const createCursorObjectData = (
   const cursorObjectTexture = gl.createTexture();
 
   // TODO: Handle failure to create resources
-
   gl.bindTexture(gl.TEXTURE_2D, cursorObjectTexture);
 
   const cursorObjectPixels = new Array<number>();
@@ -307,7 +304,7 @@ export const createCursorObjectData = (
     const { vertexData, vertexCount } = generateCursorVertices(
       cursorPosition,
       cursorMovement,
-      size
+      size / devicePixelRatio
     );
     cursorObjectData.vertexCount = vertexCount;
 

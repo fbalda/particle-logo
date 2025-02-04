@@ -8,7 +8,8 @@ uniform highp vec2 canvasSize;
 out float vAlpha;
 
 void main() {
-  gl_Position = vec4((position - 0.5) / (canvasSize * 0.5f), 0.0, 1.0);
+  // gl_Position = vec4((position - 0.5) / (canvasSize * 0.5f), 0.0, 1.0);
+  gl_Position = vec4(position / (canvasSize * 0.5f), 0.0, 1.0);
 
   vAlpha = alpha;
   gl_PointSize = 1.0;

@@ -1,4 +1,4 @@
-import type { vec2 } from "gl-matrix";
+import { vec2 } from "gl-matrix";
 import { debounce, getImageDataFromUrl, resetUrlHash } from "../helpers";
 import { createCursorObjectData } from "./cursorObject";
 import { createForceVectorFramebufferData, createShaders } from "./resources";
@@ -8,8 +8,8 @@ import { CURSOR_SIZE_CSS_PIXELS } from "../../constants";
 const RESOURCE_REFRESH_DEBOUNCE_DELAY_MS = 300;
 const LOGO_SIZE = 250;
 const CLEAR_COLOR: [number, number, number, number] = [0.0, 0.0, 0.0, 1.0];
-const CURSOR_DEBUG_DRAW = false;
-const CURSOR_SIZE_PIXELS = CURSOR_SIZE_CSS_PIXELS * 2 * devicePixelRatio;
+const CURSOR_DEBUG_DRAW = true;
+const CURSOR_SIZE_PIXELS = CURSOR_SIZE_CSS_PIXELS * devicePixelRatio;
 
 const setupRenderer = (canvasElement: HTMLCanvasElement) => {
   const canvasResolution = { x: 0, y: 0 };
@@ -59,7 +59,8 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
 
   const renderForceVectorFramebuffer = (
     cursorPosition: vec2 | undefined,
-    cursorMovement: vec2
+    cursorMovement: vec2,
+    vectorScale: number
   ) => {
     gl.bindFramebuffer(gl.FRAMEBUFFER, forceVectorFramebufferData.framebuffer);
     // Vector components are mapped from [-1,1] to [0,1] so 0.5 means 0
@@ -95,6 +96,15 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
         CURSOR_SIZE_PIXELS
       );
 
+      // console.log("Move: ", cursorMovement);
+      // console.log("Len: ", vec2.len(cursorMovement));
+      // console.log("Scale: ", vectorScale);
+
+      gl.uniform1f(
+        cursorShader.uniformLocations.get("vectorScale") || null,
+        vectorScale
+      );
+
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, cursorObject.vertexCount);
 
       gl.bindTexture(gl.TEXTURE_2D, null);
@@ -108,7 +118,8 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
     deltaTime: number,
     time: number,
     cursorSize: number,
-    writeBufferIndex: number
+    writeBufferIndex: number,
+    transformationVectorScale: number
   ) => {
     if (!particleData || !particleTransformShader.transformFeedback) {
       return;
@@ -136,10 +147,6 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
       0
     );
 
-    gl.beginTransformFeedback(gl.POINTS);
-    gl.drawArrays(gl.POINTS, 0, particleData.particleCount);
-    gl.endTransformFeedback();
-
     gl.uniform1f(
       particleTransformShader.uniformLocations.get("deltaTime") || null,
       deltaTime
@@ -157,6 +164,15 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
       canvasResolution.x,
       canvasResolution.y
     );
+
+    gl.uniform1f(
+      particleTransformShader.uniformLocations.get("vectorScale") || null,
+      transformationVectorScale
+    );
+
+    gl.beginTransformFeedback(gl.POINTS);
+    gl.drawArrays(gl.POINTS, 0, particleData.particleCount);
+    gl.endTransformFeedback();
 
     gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
     gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
@@ -218,8 +234,19 @@ const setupRenderer = (canvasElement: HTMLCanvasElement) => {
 
     const writeBufferIndex = 1 - readBufferIndex;
 
-    renderForceVectorFramebuffer(cursorPosition, cursorMovement);
-    updateParticles(deltaTime, time, CURSOR_SIZE_PIXELS, writeBufferIndex);
+    const vectorScale =
+      CURSOR_SIZE_PIXELS + vec2.len(cursorMovement) * devicePixelRatio;
+
+    // const vectorScale = 500 * devicePixelRatio;
+
+    renderForceVectorFramebuffer(cursorPosition, cursorMovement, vectorScale);
+    updateParticles(
+      deltaTime,
+      time,
+      CURSOR_SIZE_PIXELS,
+      writeBufferIndex,
+      vectorScale
+    );
     renderParticles(writeBufferIndex);
     if (CURSOR_DEBUG_DRAW) {
       debugRenderCursorForceVectors();

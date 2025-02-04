@@ -15,7 +15,7 @@
 <style>
   div {
     position: fixed;
-    border: 1px solid white;
+    border: 1px solid red;
     box-sizing: border-box;
     z-index: 2;
     pointer-events: none;

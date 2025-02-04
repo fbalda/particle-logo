@@ -8,6 +8,7 @@ layout(location = 3) in float alpha;
 uniform float deltaTime;
 uniform float time;
 uniform float cursorSize;
+uniform highp float vectorScale;
 
 uniform sampler2D accelerationVectorMap;
 uniform highp vec2 canvasSize;
@@ -50,54 +51,52 @@ void main() {
   highp vec2 tempPosition = position;
   vec2 tempVelocity = vec2(0.f, 0.f);
 
-  if (originVectorLength < speed * deltaTime + RETURN_DISTANCE_BIAS &&
-      originSpeed > 0.0f) {
-    tempPosition = origin;
-    tempVelocity = vec2(0.f, 0.f);
-  } else {
+  // if (originVectorLength < speed * deltaTime + RETURN_DISTANCE_BIAS &&
+  //     originSpeed > 0.0f) {
+  //   tempPosition = origin;
+  //   tempVelocity = vec2(0.f, 0.f);
+  // } else {
 
-    // Perpendicular deceleration (sideways damping)
-    vec2 perpDeceleration = vec2(0.f, 0.f);
+  // Perpendicular deceleration (sideways damping)
+  vec2 perpDeceleration = vec2(0.f, 0.f);
 
-    if (speed > 0.f) {
-      perpDeceleration =
-          originPerpVector * PERP_DECELERATION_FACTOR * (perpSpeed / speed);
-    }
-
-    // Particle acceleration (return acceleration + sideways deceleration)
-    vec2 acceleration =
-        originDirection * RETURN_ACCELERATION - perpDeceleration;
-
-    // acceleration = vec2(0.f, 0.f);
-
-    tempPosition =
-        position + velocity * deltaTime + acceleration * deltaTime * deltaTime;
-
-    vec2 uv = ((tempPosition / canvasSize) + vec2(0.5f, 0.5f));
-
-    // Boost amount (user input)
-    // vec2 boost = (texture(accelerationVectorMap, uv).rg - vec2(0.5, 0.5)) *
-    //              8000.f * vec2(1.0, -1.0);
-
-    // vec2 boost = (texture(accelerationVectorMap, uv).rg - vec2(0.5, 0.5)) *
-    //              cursorSize * vec2(1.0, -1.0);
-
-    highp vec2 rawOffset =
-        texture(accelerationVectorMap, uv).rg - vec2(0.5, 0.5);
-
-    // tempVelocity = vec2(0.f, 0.f);
-
-    if (length(rawOffset) < 0.0028f) {
-      rawOffset = vec2(0.f, 0.f);
-      tempVelocity = (velocity + acceleration * deltaTime);
-    } else {
-      // tempVelocity = rawOffset * canvasSize;
-    }
-
-    vec2 offset = rawOffset * cursorSize * 0.5;
-
-    tempPosition += offset;
+  if (speed > 0.f) {
+    perpDeceleration =
+        originPerpVector * PERP_DECELERATION_FACTOR * (perpSpeed / speed);
   }
+
+  // Particle acceleration (return acceleration + sideways deceleration)
+  vec2 acceleration = originDirection * RETURN_ACCELERATION - perpDeceleration;
+
+  acceleration = vec2(0.f, 0.f);
+
+  tempPosition =
+      position + velocity * deltaTime + acceleration * deltaTime * deltaTime;
+
+  vec2 uv = ((tempPosition / canvasSize) + vec2(0.5f, 0.5f));
+
+  // Boost amount (user input)
+  // vec2 boost = (texture(accelerationVectorMap, uv).rg - vec2(0.5, 0.5)) *
+  //              8000.f * vec2(1.0, -1.0);
+
+  // vec2 boost = (texture(accelerationVectorMap, uv).rg - vec2(0.5, 0.5)) *
+  //              cursorSize * vec2(1.0, -1.0);
+
+  highp vec2 rawOffset = texture(accelerationVectorMap, uv).rg - vec2(0.5, 0.5);
+
+  // tempVelocity = vec2(0.f, 0.f);
+
+  if (length(rawOffset) < 0.0028f) {
+    rawOffset = vec2(0.f, 0.f);
+    tempVelocity = (velocity + acceleration * deltaTime);
+  } else {
+    // tempVelocity = rawOffset * canvasSize;
+  }
+
+  vec2 offset = rawOffset * vectorScale * 2.0;
+
+  tempPosition += offset;
+  // }
 
   // tempPosition = position + offset;
 
@@ -122,8 +121,8 @@ void main() {
   // }
 
   outPosition = tempPosition;
-  // outVelocity = vec2(0.f, 0.f);
-  outVelocity = tempVelocity;
+  outVelocity = vec2(0.f, 0.f);
+  // outVelocity = tempVelocity;
   outOrigin = origin;
   outAlpha = alpha;
 }

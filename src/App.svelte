@@ -1,33 +1,33 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Canvas from "./lib/Canvas.svelte";
-  import Cursor from "./lib/Cursor.svelte";
   import GhostIcon from "@assets/ghost-solid.svg";
   import { resetUrlHash } from "./lib/helpers";
   import type { KeyboardEventHandler } from "svelte/elements";
+  import Cursor from "./lib/Cursor.svelte";
 
   const logoUrlParameterName = "logo_url";
 
-  let cursorPosition: { x: number; y: number } | undefined = undefined;
+  const cursorPosition: { x: number; y: number } | undefined = undefined;
 
-  let cursorMovement = { x: 100, y: 0 };
-  let isCursorHidden = false;
+  const cursorMovement = { x: 100, y: 0 };
+  const isCursorHidden = false;
 
-  let test = false;
+  // let test = false;
+
+  const testPhase = 0;
 
   let logoUrl = "";
 
   const onKeyDown: KeyboardEventHandler<Window> = (event) => {
     if (event.key === "a") {
       // test = !test;
-
-      test = true;
-
-      cursorPosition = {
-        x: window.innerWidth / 2 - 75,
-        y: window.innerHeight / 2,
-      };
-
+      // testPhase = 3;
+      // test = true;
+      // cursorPosition = {
+      //   x: window.innerWidth / 2 - 75,
+      //   y: window.innerHeight / 2,
+      // };
       // if (test) {
       //   cursorPosition = { x: 0, y: 0 };
       // } else {
@@ -41,14 +41,14 @@
 
   const onMouseEnter = (event: MouseEvent) => {
     // cursorPosition = { x: event.clientX, y: event.clientY };
-    cursorMovement = { x: 0, y: 0 };
+    // cursorMovement = { x: 0, y: 0 };
   };
 
   const onPointerDown = (event: PointerEvent) => {
     if (!event.isPrimary || event.pointerType !== "touch") {
       return;
     }
-    cursorPosition = { x: event.clientX, y: event.clientY };
+    // cursorPosition = { x: event.clientX, y: event.clientY };
   };
 
   const onPointerUp = (event: PointerEvent) => {
@@ -62,21 +62,21 @@
     if (!event.isPrimary) {
       return;
     }
-    if (cursorPosition) {
-      cursorMovement = {
-        x: event.clientX - cursorPosition.x,
-        y: event.clientY - cursorPosition.y,
-      };
-    }
-    cursorPosition = { x: event.clientX, y: event.clientY };
+    // if (cursorPosition) {
+    //   cursorMovement = {
+    //     x: event.clientX - cursorPosition.x,
+    //     y: event.clientY - cursorPosition.y,
+    //   };
+    // }
+    // cursorPosition = { x: event.clientX, y: event.clientY };
   };
 
   const onMouseEnterDocument = () => {
-    isCursorHidden = false;
+    // isCursorHidden = false;
   };
 
   const onMouseLeaveDocument = () => {
-    isCursorHidden = true;
+    // isCursorHidden = true;
   };
 
   const onHashChange = () => {

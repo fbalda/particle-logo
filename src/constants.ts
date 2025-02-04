@@ -1,1 +1,1 @@
-export const CURSOR_SIZE_CSS_PIXELS = 75;
+export const CURSOR_SIZE_CSS_PIXELS = 45;

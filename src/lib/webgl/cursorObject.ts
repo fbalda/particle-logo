@@ -1,12 +1,12 @@
 import { vec2 } from "gl-matrix";
 import { createRotatedRect } from "../helpers";
 
-const MAX_SCALE_CURSOR_SPEED = 0.3;
-const PERPENDICULAR_SPEED_WEIGHT = 0.0;
-const FORCE_SCALE_FACTOR = 3.0;
+// const MAX_SCALE_CURSOR_SPEED = 0.3;
+// const PERPENDICULAR_SPEED_WEIGHT = 0.0;
+// const FORCE_SCALE_FACTOR = 3.0;
 
 // Components per vertex attribute array
-const VERTEX_ARRAY_SETUP = [2, 2, 2];
+const VERTEX_ARRAY_SETUP = [2, 2, 1];
 
 export interface CursorObjectData {
   texture: WebGLTexture | null;
@@ -30,189 +30,129 @@ const generateCursorVertices = (
   absoluteCursorMovement: vec2,
   cursorSize: number
 ) => {
-  const screenSpacePointerPosition = vec2.fromValues(
-    (-0.5 + absoluteCursorPosition[0] / window.innerWidth) * 2,
-    (-0.5 + absoluteCursorPosition[1] / window.innerHeight) * -2
-  );
-  const screenSpacePointerMovement = vec2.fromValues(
-    (absoluteCursorMovement[0] / window.innerWidth) * 2,
-    (absoluteCursorMovement[1] / window.innerHeight) * -2
+  const cursorDirection = vec2.create();
+  vec2.normalize(cursorDirection, absoluteCursorMovement);
+
+  const cursorDirectionPerp = vec2.fromValues(
+    cursorDirection[1],
+    -cursorDirection[0]
   );
 
-  const halfSize = vec2.fromValues(
-    (cursorSize / window.innerWidth) * 0.5,
-    (cursorSize / window.innerHeight) * 0.5
+  // Vector pointing in the direction of the mouse movement, scaled by the
+  // size of the cursor object
+  const scaledXAxis = vec2.fromValues(
+    cursorDirection[0] * cursorSize * 0.25,
+    cursorDirection[1] * cursorSize * 0.25
   );
 
-  const vertexData: number[] = [];
+  // Vector perpendicular to the direction of the mouse movement, scaled by
+  // the size of the cursor object
+  const scaledYAxis = vec2.fromValues(
+    cursorDirectionPerp[0] * cursorSize * 0.25,
+    cursorDirectionPerp[1] * cursorSize * 0.25
+  );
+
+  const corners = createRotatedRect(scaledXAxis, scaledYAxis);
+
+  const cornerTextureCoordinates = createRotatedRect(
+    cursorDirection,
+    cursorDirectionPerp
+  ).map((normal) => uvFromNormal(normal));
+
+  // Back corners are stretched out to "smear" the cursor with motion
+  vec2.sub(corners[2], corners[2], absoluteCursorMovement);
+  vec2.sub(corners[3], corners[3], absoluteCursorMovement);
+
+  const positions = [
+    corners[1],
+    corners[0],
+    scaledYAxis,
+    vec2.fromValues(-scaledYAxis[0], -scaledYAxis[1]),
+    vec2.fromValues(
+      -absoluteCursorMovement[0] + scaledYAxis[0],
+      -absoluteCursorMovement[1] + scaledYAxis[1]
+    ),
+    vec2.fromValues(
+      -absoluteCursorMovement[0] - scaledYAxis[0],
+      -absoluteCursorMovement[1] - scaledYAxis[1]
+    ),
+    vec2.fromValues(
+      -absoluteCursorMovement[0] + scaledYAxis[0],
+      -absoluteCursorMovement[1] + scaledYAxis[1]
+    ),
+    vec2.fromValues(
+      -absoluteCursorMovement[0] - scaledYAxis[0],
+      -absoluteCursorMovement[1] - scaledYAxis[1]
+    ),
+    corners[3],
+    corners[2],
+  ];
+
+  const centerTextureCoordinates = [vec2.create(), vec2.create()];
+
+  vec2.lerp(
+    centerTextureCoordinates[0],
+    cornerTextureCoordinates[0],
+    cornerTextureCoordinates[2],
+    0.5
+  );
+
+  vec2.lerp(
+    centerTextureCoordinates[1],
+    cornerTextureCoordinates[1],
+    cornerTextureCoordinates[3],
+    0.5
+  );
+
+  const textureCoordinates = [
+    cornerTextureCoordinates[1],
+    cornerTextureCoordinates[0],
+    centerTextureCoordinates[1],
+    centerTextureCoordinates[0],
+    centerTextureCoordinates[1],
+    centerTextureCoordinates[0],
+    centerTextureCoordinates[1],
+    centerTextureCoordinates[0],
+    cornerTextureCoordinates[3],
+    cornerTextureCoordinates[2],
+  ];
+
+  // const test = [
+  //   vec2.fromValues(0, 0),
+  //   vec2.fromValues(0, 0),
+  //   vec2.fromValues(0, 0),
+  //   vec2.fromValues(0, 0),
+
+  //   vec2.fromValues(1, 1),
+  //   vec2.fromValues(1, 1),
+
+  //   vec2.fromValues(0, 0),
+  //   vec2.fromValues(0, 0),
+  //   vec2.fromValues(0, 0),
+  //   vec2.fromValues(0, 0),
+  // ];
+
+  const velocityWeights = [0, 0, 0, 0, 1, 1, 0, 0, 0, 0];
 
   let vertexCount = 0;
+  const vertexData = positions.flatMap<number>((offset, index) => {
+    // const screenSpacePointerPosition = vec2.fromValues(
+    //   (-0.5 + absoluteCursorPosition[0] / window.innerWidth) * 2,
+    //   (-0.5 + absoluteCursorPosition[1] / window.innerHeight) * -2
+    // );
 
-  const pushVertexData = (offset: vec2, uv: vec2, force: vec2) => {
     vertexCount++;
-    vertexData.push(
-      screenSpacePointerPosition[0] + offset[0],
-      screenSpacePointerPosition[1] + offset[1],
-      uv[0],
-      uv[1],
-      force[0],
-      force[1]
-    );
-  };
-
-  const generateStationaryCursorVertices = () => {
-    // Stationary, set to none (0.5 maps to 0 in shader)
-    const movementForce = vec2.fromValues(0.5, 0.5);
-
-    const cornersOffsets = [
-      vec2.fromValues(-halfSize[0], -halfSize[1]),
-      vec2.fromValues(halfSize[0], -halfSize[1]),
-      vec2.fromValues(-halfSize[0], halfSize[1]),
-      vec2.fromValues(halfSize[0], halfSize[1]),
-    ];
-
-    const cornerTextureCoordinates = [
-      vec2.fromValues(0, 0),
-      vec2.fromValues(1, 0),
-      vec2.fromValues(0, 1),
-      vec2.fromValues(1, 1),
-    ];
-
-    cornersOffsets.forEach((offset, index) => {
-      pushVertexData(offset, cornerTextureCoordinates[index], movementForce);
-    });
-  };
-
-  const generateMovingCursorVertices = () => {
-    const cursorVelocity = vec2.length(screenSpacePointerMovement);
-
-    const cursorDirection = vec2.create();
-    vec2.normalize(cursorDirection, screenSpacePointerMovement);
-
-    const cursorDirectionPerp = vec2.fromValues(
-      cursorDirection[1],
-      -cursorDirection[0]
-    );
-
-    // Vector pointing in the direction of the mouse movement, scaled by the
-    // size of the cursor object
-    const scaledXAxis = vec2.fromValues(
-      cursorDirection[0] * halfSize[0],
-      cursorDirection[1] * halfSize[1]
-    );
-
-    // Vector perpendicular to the direction of the mouse movement, scaled by
-    // the size of the cursor object
-    const scaledYAxis = vec2.fromValues(
-      cursorDirectionPerp[0] * halfSize[0],
-      cursorDirectionPerp[1] * halfSize[1]
-    );
-
-    const forceScale =
-      (Math.min(MAX_SCALE_CURSOR_SPEED, cursorVelocity) /
-        MAX_SCALE_CURSOR_SPEED) *
-      FORCE_SCALE_FACTOR;
-
-    // Lateral push forces
-    const lateralForces = [
-      vec2.fromValues(
-        ((cursorDirection[0] -
-          cursorDirectionPerp[0] * PERPENDICULAR_SPEED_WEIGHT) *
-          forceScale +
-          1) /
-          2,
-        ((cursorDirection[1] -
-          cursorDirectionPerp[1] * PERPENDICULAR_SPEED_WEIGHT) *
-          -forceScale +
-          1) /
-          2
-      ),
-      vec2.fromValues(
-        ((cursorDirection[0] +
-          cursorDirectionPerp[0] * PERPENDICULAR_SPEED_WEIGHT) *
-          forceScale +
-          1) /
-          2,
-        ((cursorDirection[1] +
-          cursorDirectionPerp[1] * PERPENDICULAR_SPEED_WEIGHT) *
-          -forceScale +
-          1) /
-          2
-      ),
-    ];
-
-    const corners = createRotatedRect(scaledXAxis, scaledYAxis);
-
-    const cornerTextureCoordinates = createRotatedRect(
-      cursorDirection,
-      cursorDirectionPerp
-    ).map((normal) => uvFromNormal(normal));
-
-    // Back corners are stretched out to "smear" the cursor with motion
-    vec2.sub(corners[2], corners[2], screenSpacePointerMovement);
-    vec2.sub(corners[3], corners[3], screenSpacePointerMovement);
-
-    const vertices = [
-      corners[1],
-      corners[0],
-      vec2.fromValues(scaledYAxis[0], scaledYAxis[1]),
-      vec2.fromValues(-scaledYAxis[0], -scaledYAxis[1]),
-      vec2.fromValues(
-        -screenSpacePointerMovement[0] + scaledYAxis[0],
-        -screenSpacePointerMovement[1] + scaledYAxis[1]
-      ),
-      vec2.fromValues(
-        -(scaledYAxis[0] + screenSpacePointerMovement[0]),
-        -(scaledYAxis[1] + screenSpacePointerMovement[1])
-      ),
-      corners[3],
-      corners[2],
-    ];
-
-    const centerTextureCoordinates = [vec2.create(), vec2.create()];
-
-    vec2.lerp(
-      centerTextureCoordinates[0],
-      cornerTextureCoordinates[0],
-      cornerTextureCoordinates[2],
-      0.5
-    );
-
-    vec2.lerp(
-      centerTextureCoordinates[1],
-      cornerTextureCoordinates[1],
-      cornerTextureCoordinates[3],
-      0.5
-    );
-
-    const textureCoordinates = [
-      cornerTextureCoordinates[1],
-      cornerTextureCoordinates[0],
-      centerTextureCoordinates[1],
-      centerTextureCoordinates[0],
-      centerTextureCoordinates[1],
-      centerTextureCoordinates[0],
-      cornerTextureCoordinates[3],
-      cornerTextureCoordinates[2],
-    ];
-
-    vertices.forEach((position, index) => {
-      pushVertexData(
-        position,
-        textureCoordinates[index],
-        lateralForces[index % 2]
-      );
-    });
-  };
-
-  if (
-    screenSpacePointerMovement[0] !== 0 ||
-    screenSpacePointerMovement[1] !== 0
-  ) {
-    generateMovingCursorVertices();
-  } else {
-    generateStationaryCursorVertices();
-  }
+    return [
+      (-0.5 + (absoluteCursorPosition[0] + offset[0]) / window.innerWidth) * 2,
+      (-0.5 + (absoluteCursorPosition[1] + offset[1]) / window.innerHeight) *
+        -2,
+      // screenSpacePointerPosition[0] + offset[0] / window.innerWidth,
+      // screenSpacePointerPosition[1] - offset[1] / window.innerHeight,
+      textureCoordinates[index][0],
+      textureCoordinates[index][1],
+      velocityWeights[index],
+    ] as number[];
+  });
 
   return { vertexData, vertexCount };
 };
@@ -225,6 +165,9 @@ export const createCursorObjectData = (
 
   // TODO: Handle failure to create resources
   gl.bindTexture(gl.TEXTURE_2D, cursorObjectTexture);
+
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
 
   const cursorObjectPixels = new Array<number>();
 
@@ -243,8 +186,7 @@ export const createCursorObjectData = (
 
       cursorObjectPixels.push(
         (vector[0] + 0.5) * 255, // X
-        (vector[1] + 0.5) * 255, // Y
-
+        (1 - (vector[1] + 0.5)) * 255, // Y
         (1 - (length / (size / 2)) ** 2) * 255 // Alpha
       );
     }
@@ -304,7 +246,7 @@ export const createCursorObjectData = (
     const { vertexData, vertexCount } = generateCursorVertices(
       cursorPosition,
       cursorMovement,
-      size / devicePixelRatio
+      size
     );
     cursorObjectData.vertexCount = vertexCount;
 

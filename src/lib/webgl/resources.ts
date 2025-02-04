@@ -150,7 +150,13 @@ export const createShaders = (gl: WebGL2RenderingContext) => {
     {
       vertexShaderSource: cursorVertexShaderSource,
       fragmentShaderSource: cursorFragmentShaderSource,
-      uniforms: ["radialMask", "canvasSize", "cursorSize", "velocity"],
+      uniforms: [
+        "radialMask",
+        "canvasSize",
+        "cursorSize",
+        "velocity",
+        "vectorScale",
+      ],
     },
     // Particle Transform Shader
     {
@@ -171,6 +177,7 @@ export const createShaders = (gl: WebGL2RenderingContext) => {
         "cursorSize",
         "accelerationVectorMap",
         "canvasSize",
+        "vectorScale",
       ],
     },
   ];
